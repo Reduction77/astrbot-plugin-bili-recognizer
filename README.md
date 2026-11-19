@@ -1,6 +1,6 @@
 # AstrBot 插件 · B 站链接识别与直播通知
 
-在 QQ 群聊或私聊里发送 B 站链接，机器人会回复封面、标题、作者和内容摘要。给 UP 主添加直播订阅后，机器人会把开播、下播通知发到指定群。插件运行在 AstrBot，QQ 由 NapCat 通过 OneBot v11 接入。
+在 QQ 群聊或私聊里发送 B 站链接，机器人会回复封面、标题、作者和内容摘要。给 UP 主添加直播订阅后，机器人会把开播、下播通知发到指定群。插件运行在 AstrBot，QQ 支持官方机器人（`qq_official`）和 NapCat（`aiocqhttp`），两种接入可同时使用。
 
 [快速安装](#快速安装) · [使用手册](docs/usage.md) · [直播通知](docs/live.md) · [从 NapCat 原版迁移](docs/migration.md) · [常见问题](docs/troubleshooting.md)
 
@@ -18,12 +18,18 @@
 
 ## 快速安装
 
-1. 准备 **AstrBot 4.29.4 或更高的 4.x 版本**，启用 OneBot v11（`aiocqhttp`）适配器，让已登录 QQ 的 NapCat 反向连接 AstrBot。
+1. 准备 **AstrBot 4.29.4 或更高的 4.x 版本**，启用 QQ 官方机器人（`qq_official`），或使用 OneBot v11（`aiocqhttp`）让 NapCat 连接 AstrBot。
 2. 在 **AstrBot 所在的服务器或容器** 安装 **Node.js 20.3+**，确认 AstrBot 进程可执行 `node --version`。下载需要合并音视频时还要安装 FFmpeg。插件自带前端和 Node 业务模块，安装时无需运行 `npm install`。
 3. 在 AstrBot 插件管理页通过仓库 URL 安装，或上传插件安装包 `astrbot_plugin_bili_recognizer-<版本>.zip`。手动安装时，将源码放入 `data/plugins/astrbot_plugin_bili_recognizer/`，确保目录下直接包含 `main.py` 和 `metadata.yaml`。
 4. 打开插件详情中的 **dashboard**。只有一个 OneBot 实例时会自动选用；多个实例时，在 AstrBot 插件配置中填写负责本插件的 **平台实例 ID**，保存并重载。
 
 已有 NapCat 原版订阅或登录凭据的用户，可在首次启用前按说明迁移。[数据迁移指南](docs/migration.md)
+
+## QQ 官方机器人
+
+在 QQ 群里发送 `@机器人 /bili绑定`。收到绑定成功回复后，在控制台「直播订阅」中选择群列表里带官方平台实例名称的目标，再保存订阅、开启检测。绑定只登记本群，管理员在控制台决定订阅哪个主播。原有数字群号继续通过 OneBot 投递。只连接官方机器人时，OneBot 平台实例 ID 留空即可。
+
+群聊与单聊都支持文本链接、BV 号和下载指令。若群机器人只接收 @ 消息，分享链接或发指令时需 @机器人；要自动识别普通群消息，应在 QQ 中允许机器人接收全部群消息。直播通知需要群内主动发言权限。小程序分享需要 QQ 事件提供可解析的链接，视频回传受 QQ 接口的文件大小和内容审核限制。两个机器人同时在同一群监听时，可在「群聊管理」分别设置识别范围。
 
 ## 第一次使用
 

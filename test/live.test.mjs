@@ -91,3 +91,20 @@ test('状态持久化失败时不发送通知',async t=>{
 test('直播接口没有对应 UID 时不误取其他主播的数据',async()=>{
  await assert.rejects(fetchLive({api:async()=>({'999':{room_id:999,live_status:1}})},'123'),/未取得/);
 });
+
+test('官方实例目标与旧数字群号共存，重载后仍按原目标发送',async t=>{
+ const x=await setup(t);
+ const targets=['111','qqo.5a6Y5pa5.OPENID_1'];
+ await x.add({groups:targets});
+ await x.enable();
+ await x.m.check();
+ await x.m.close();
+ const restored=x.make();
+ try{
+  await restored.init();
+  assert.deepEqual(restored.data.subscriptions[0].groups,targets);
+  x.setStatus(1);
+  await restored.check();
+  assert.deepEqual(x.sent.map(row=>row.group),targets);
+ }finally{await restored.close();}
+});

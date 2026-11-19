@@ -6,7 +6,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = ('main.py', 'engine.py', 'metadata.yaml', '_conf_schema.json', 'package.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md')
+FILES = ('main.py', 'engine.py', 'qq_official.py', 'metadata.yaml', '_conf_schema.json', 'package.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'THIRD_PARTY_NOTICES.md')
 DIRECTORIES = ('lib', 'views', 'assets', 'docs')
 ALLOWED = {'.mjs', '.cjs', '.js', '.css', '.html', '.md', '.json', '.txt', '.png', '.jpg', '.webp'}
 

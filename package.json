@@ -1,7 +1,7 @@
 {
   "name": "astrbot_plugin_bili_recognizer",
   "plugin": "B站链接识别",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "main": "lib/index.mjs",
   "description": "B站链接识别与视频下载，内置扫码登录、WebUI 控制台、QQ 视频发送与开播下播图片卡片通知",

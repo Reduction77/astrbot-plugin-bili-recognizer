@@ -2,7 +2,8 @@ name: astrbot_plugin_bili_recognizer
 display_name: B站链接识别与直播通知
 desc: QQ 群聊和私聊链接解析、扫码登录、视频下载与多群开播下播通知
 author: 朱朱白白
-version: 1.0.0
+version: 1.1.0
 support_platforms:
   - aiocqhttp
+  - qq_official
 astrbot_version: ">=4.29.4,<5"

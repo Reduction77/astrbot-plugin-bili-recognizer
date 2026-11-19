@@ -10,6 +10,7 @@ from astrbot.api.star import Context, Star, StarTools
 from astrbot.api.web import error_response, json_response, request, stream_response
 
 from .engine import Engine
+from .qq_official import destination, send_official, unpack_destination
 
 NAME = "astrbot_plugin_bili_recognizer"
 
@@ -21,6 +22,7 @@ class BiliRecognizer(Star):
         self.directory = StarTools.get_data_dir(NAME)
         self.engine = Engine(self._action, logger)
         self.handlers = set()
+        self.binding_lock = asyncio.Lock()
 
     async def initialize(self):
         try:
@@ -49,30 +51,94 @@ class BiliRecognizer(Star):
         raise RuntimeError("请在插件配置中指定有效的 OneBot v11 平台实例 ID")
 
     async def _action(self, method, params):
-        client = self._platform().get_client()
         if method == "get_group_list":
-            return await client.call_action(method)
+            bound = await self.get_kv_data("official_groups", {})
+            groups = [
+                {"group_id": key, "group_name": label}
+                for key, label in bound.items()
+                if self.context.get_platform_inst(unpack_destination(key)[0])
+            ]
+            onebots = [p for p in self.context.platform_manager.platform_insts if p.meta().name == "aiocqhttp"]
+            if onebots:
+                try:
+                    rows = await self._platform().get_client().call_action(method)
+                    groups.extend(rows if isinstance(rows, list) else rows["data"])
+                except Exception:
+                    if not groups:
+                        raise
+                    logger.warning("OneBot 群列表暂时不可用，仅显示已绑定的官方 QQ 群")
+            return groups
         if method != "send_msg":
-            raise ValueError("未知 OneBot 操作")
+            raise ValueError("未知 QQ 操作")
+        group = params["message_type"] == "group"
+        key = params["group_id" if group else "user_id"]
+        if key.startswith("qqo."):
+            instance, openid = unpack_destination(key)
+            platform = self.context.get_platform_inst(instance)
+            if not platform or platform.meta().name != "qq_official":
+                raise RuntimeError("目标 QQ 官方机器人实例不可用")
+            await send_official(platform.get_client(), group, openid, params["message"],
+                                params.get("reply_id"), self._media_path)
+            return {"status": "ok"}
+        client = self._platform().get_client()
         for segment in params["message"]:
             if segment["type"] not in {"image", "video"}:
                 continue
             data = segment["data"]
-            source = data["file"]
-            if source.startswith(("https://", "http://")):
+            path = self._media_path(segment["type"], data["file"])
+            if isinstance(path, str):
                 continue
-            path = Path(url2pathname(source[7:]) if source.startswith("file://") else source).resolve()
-            folder = "downloads" if segment["type"] == "video" else "live-cards"
-            if not path.is_relative_to((self.directory / folder).resolve()):
-                raise ValueError("媒体路径无效")
             # NapCat may run on another host and cannot read AstrBot's filesystem.
             def encode():
                 return "base64://" + base64.b64encode(path.read_bytes()).decode("ascii")
             data["file"] = await asyncio.to_thread(encode)
         return await client.call_action(method, **params)
 
+    def _media_path(self, kind, source):
+        if source.startswith(("https://", "http://")):
+            return source
+        path = Path(url2pathname(source[7:]) if source.startswith("file://") else source).resolve()
+        folder = "downloads" if kind == "video" else "live-cards"
+        if not path.is_relative_to((self.directory / folder).resolve()):
+            raise ValueError("媒体路径无效")
+        return path
+
+    async def _official_message(self, event):
+        msg = event.message_obj
+        raw = msg.raw_message
+        group = getattr(raw, "group_openid", None)
+        sender = getattr(getattr(raw, "author", None), "member_openid" if group else "user_openid", None)
+        if not sender or str(sender) == str(msg.self_id):
+            return
+        instance = event.get_platform_id()
+        target = destination(instance, group) if group else None
+        content = msg.message_str.strip()
+        if group and content == "/bili绑定":
+            label = getattr(getattr(msg, "group", None), "group_name", None) or group
+            async with self.binding_lock:
+                bound = await self.get_kv_data("official_groups", {})
+                bound[target] = f"{instance} · {label}"
+                await self.put_kv_data("official_groups", bound)
+            await event.send(event.plain_result("本群已绑定，可在直播订阅的群列表中选择。"))
+            return
+        segments = [{"type": "text", "data": {"text": content}}]
+        raw_data = getattr(raw, "raw_data", None)
+        if isinstance(raw_data, dict):
+            for key in ("ark", "json", "xml"):
+                share = raw_data.get(key)
+                if isinstance(share, (dict, str)):
+                    segments.append({"type": "xml" if key == "xml" else "json", "data": {"data": share}})
+        await self.engine.call("message", {
+            "post_type": "message", "message_type": "group" if group else "private",
+            "group_id": target, "user_id": destination(instance, sender),
+            "message": segments, "message_id": msg.message_id, "reply_id": msg.message_id,
+        })
+
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_message(self, event: AstrMessageEvent):
+        if event.get_platform_name() == "qq_official":
+            await self._official_message(event)
+            return
         if event.get_platform_name() != "aiocqhttp":
             return
         if self.platform_id and self.platform_id != event.get_platform_id():

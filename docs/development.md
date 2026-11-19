@@ -10,7 +10,7 @@
 
 ```sh
 npm test
-python -m unittest discover -s test -p test_engine.py
+python -m unittest discover -s test -p "test_*.py"
 npm run benchmark
 ```
 

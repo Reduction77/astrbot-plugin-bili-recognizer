@@ -5,6 +5,29 @@ import secrets
 from types import SimpleNamespace
 
 
+def card_details(raw):
+    """Read QQ ARK jump targets, including cards nested in forwarded messages."""
+    def field(obj, name):
+        return obj.get(name) if isinstance(obj, dict) else getattr(obj, name, None)
+
+    stack = [field(raw, "raw_data") or raw]
+    targets = []
+    is_bili = False
+    while stack:
+        elem = stack.pop()
+        card = field(elem, "ark_data")
+        fields = field(card, "fields")
+        if field(fields, "source") in ("哔哩哔哩", "bilibili") or field(fields, "tag") in ("哔哩哔哩", "bilibili"):
+            is_bili = True
+        target = field(fields, "jump_url")
+        if isinstance(target, str) and target and target not in targets:
+            targets.append(target)
+        children = field(elem, "msg_elements")
+        if isinstance(children, list):
+            stack.extend(reversed(children))
+    return targets, is_bili
+
+
 def destination(platform_id, openid):
     platform = base64.urlsafe_b64encode(platform_id.encode()).decode().rstrip("=")
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", platform) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", openid):

@@ -37,3 +37,15 @@ test('配置保存立即生效并可重新加载',async t=>{const {ctx,event,mes
 test('图片失败降级纯文字；私聊发到正确用户',async t=>{const {ctx,event,messages}=await fixture(t);ctx.actions.call=async(...args)=>{messages.push(args);if(messages.length===1)return {status:'failed',retcode:1200};return {message_id:2};};await plugin.plugin_onmessage(ctx,{...event,message_type:'private'});assert.equal(messages.length,2);assert.equal(messages[1][1].user_id,'123');assert.equal(messages[1][1].message.length,1);assert.equal(messages[1][1].message[0].type,'text');});
 test('并发相同链接只回复一次',async t=>{const {ctx,event,messages}=await fixture(t);await Promise.all([plugin.plugin_onmessage(ctx,event),plugin.plugin_onmessage(ctx,{...event,message_id:2})]);assert.equal(messages.length,1);});
 test('卸载中止请求并禁止随后发送',async t=>{const {ctx,event,messages}=await fixture(t);let release,started;const ready=new Promise(r=>started=r);globalThis.fetch=async()=>{started();await new Promise(r=>release=r);return response(payload);};await plugin.plugin_init(ctx);const task=plugin.plugin_onmessage(ctx,event);await ready;await plugin.plugin_cleanup(ctx);release();await task;assert.equal(messages.length,0);});
+
+test('官方 B站卡片缺少链接时提示一次，尊重失败提示开关',async t=>{
+ const {ctx,event,messages}=await fixture(t,{notifyErrors:true});
+ const card={...event,bili_card:true,message:[{type:'text',data:{text:'title: 可爱卡提\npreview: https://qq.ugcimg.cn/preview\nsource: 哔哩哔哩'}}]};
+ await plugin.plugin_onmessage(ctx,card);
+ await plugin.plugin_onmessage(ctx,card);
+ assert.equal(messages.length,1);
+ assert.match(messages[0][1].message[0].data.text,/复制链接/);
+ await plugin.plugin_set_config(ctx,{notifyErrors:false});
+ await plugin.plugin_onmessage(ctx,{...card,group_id:789});
+ assert.equal(messages.length,1);
+});

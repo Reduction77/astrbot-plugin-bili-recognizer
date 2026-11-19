@@ -10,7 +10,7 @@ from astrbot.api.star import Context, Star, StarTools
 from astrbot.api.web import error_response, json_response, request, stream_response
 
 from .engine import Engine
-from .qq_official import destination, send_official, unpack_destination
+from .qq_official import card_details, destination, send_official, unpack_destination
 
 NAME = "astrbot_plugin_bili_recognizer"
 
@@ -143,7 +143,15 @@ class BiliRecognizer(Star):
             return
         if content.split(maxsplit=1)[:1] in (["bili下载"], ["下载视频"]):
             content = "/" + content
-        segments = [{"type": "text", "data": {"text": content}}]
+        urls, bili_card = card_details(raw)
+        segments = [{"type": "text", "data": {"text": url}} for url in urls]
+        segments.append({"type": "text", "data": {"text": content}})
+        # Some QQ events expose only a rendered card summary.
+        if "[卡片消息]" in content and any(
+            line.replace("：", ":").strip().lower() in ("source: 哔哩哔哩", "source: bilibili")
+            for line in content.splitlines()
+        ):
+            bili_card = True
         if isinstance(raw_data, dict):
             for key in ("ark", "json", "xml"):
                 share = raw_data.get(key)
@@ -152,7 +160,7 @@ class BiliRecognizer(Star):
         await self.engine.call("message", {
             "post_type": "message", "message_type": "group" if group else "private",
             "group_id": target, "user_id": destination(instance, sender),
-            "message": segments, "message_id": msg.message_id, "reply_id": msg.message_id,
+            "bili_card": bili_card, "message": segments, "message_id": msg.message_id, "reply_id": msg.message_id,
         })
 
     @filter.event_message_type(filter.EventMessageType.ALL)

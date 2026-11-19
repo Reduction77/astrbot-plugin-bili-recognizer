@@ -3,7 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from qq_official import destination, send_official, unpack_destination
+from qq_official import card_details, destination, send_official, unpack_destination
 
 
 class OfficialDeliveryTest(unittest.IsolatedAsyncioTestCase):
@@ -37,3 +37,12 @@ class OfficialDeliveryTest(unittest.IsolatedAsyncioTestCase):
                 await send_official(client, True, "group123", [
                     {"type": "text", "data": {"text": "下播"}},
                 ], None, None)
+
+
+class OfficialCardTest(unittest.TestCase):
+    def test_card_and_forwarded_card(self):
+        first = {"ark_data": {"ark_type": "miniapp", "fields": {"jump_url": "https://b23.tv/example"}}}
+        second = {"ark_data": {"fields": {"jump_url": "https://www.bilibili.com/video/BV1xx411c7mD"}}}
+        event = SimpleNamespace(raw_data={**first, "msg_elements": [{"msg_elements": [first, second]}]})
+        self.assertEqual(card_details(event)[0], ["https://b23.tv/example", "https://www.bilibili.com/video/BV1xx411c7mD"])
+        self.assertEqual(card_details({"ark_data": {"fields": {"title": "只有标题", "source": "哔哩哔哩"}}}), ([], True))

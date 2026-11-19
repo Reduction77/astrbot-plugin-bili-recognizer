@@ -1,0 +1,8 @@
+{
+  "platform_id": {
+    "description": "用于识别、下载回传和直播通知的 OneBot v11 平台实例 ID",
+    "type": "string",
+    "hint": "只有一个 QQ 实例时可留空；多个实例时填写 AstrBot 平台配置中的 ID。业务设置在插件控制台中修改。",
+    "default": ""
+  }
+}

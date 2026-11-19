@@ -23,9 +23,11 @@ class BiliRecognizer(Star):
         self.engine = Engine(self._action, logger)
         self.handlers = set()
         self.binding_lock = asyncio.Lock()
+        self.official_groups = {}
 
     async def initialize(self):
         try:
+            self.official_groups = await self.get_kv_data("official_groups", {}) or {}
             for route in await self.engine.start(self.directory):
                 method, path = route.split(" ", 1)
                 handler = self._handler(method, route)
@@ -52,7 +54,7 @@ class BiliRecognizer(Star):
 
     async def _action(self, method, params):
         if method == "get_group_list":
-            bound = await self.get_kv_data("official_groups", {})
+            bound = self.official_groups
             groups = [
                 {"group_id": key, "group_name": label}
                 for key, label in bound.items()
@@ -106,23 +108,42 @@ class BiliRecognizer(Star):
     async def _official_message(self, event):
         msg = event.message_obj
         raw = msg.raw_message
-        group = getattr(raw, "group_openid", None)
-        sender = getattr(getattr(raw, "author", None), "member_openid" if group else "user_openid", None)
-        if not sender or str(sender) == str(msg.self_id):
+        raw_data = raw if isinstance(raw, dict) else getattr(raw, "raw_data", None)
+        # Guild channels use a different QQ API from groups and C2C chats.
+        if getattr(raw, "channel_id", None) or (isinstance(raw_data, dict) and raw_data.get("channel_id")):
+            return
+        group = event.get_group_id()
+        sender = event.get_sender_id()
+        content = (event.get_message_str() or "").strip()
+        binding = content.lstrip("/") == "bili绑定"
+        if not sender or sender == event.get_self_id():
+            if binding:
+                logger.warning("收到官方 QQ 绑定指令，但缺少可用的发送者身份")
             return
         instance = event.get_platform_id()
         target = destination(instance, group) if group else None
-        content = msg.message_str.strip()
-        if group and content == "/bili绑定":
-            label = getattr(getattr(msg, "group", None), "group_name", None) or group
-            async with self.binding_lock:
-                bound = await self.get_kv_data("official_groups", {})
-                bound[target] = f"{instance} · {label}"
-                await self.put_kv_data("official_groups", bound)
+        if binding:
+            logger.info("收到官方 QQ 绑定指令，平台=%s，群消息=%s", instance, bool(group))
+            if not group:
+                await event.send(event.plain_result("请在目标 QQ 群里 @机器人 并发送 /bili绑定。"))
+                return
+        if group:
+            name = getattr(getattr(msg, "group", None), "group_name", None)
+            label = f"{instance} · {name or group}"
+            if target not in self.official_groups or (name and self.official_groups[target] != label):
+                async with self.binding_lock:
+                    if target not in self.official_groups or (name and self.official_groups[target] != label):
+                        updated = {**self.official_groups, target: label}
+                        await self.put_kv_data("official_groups", updated)
+                        self.official_groups = updated
+                        logger.info("已登记官方 QQ 群，平台=%s", instance)
+        if group and binding:
             await event.send(event.plain_result("本群已绑定，可在直播订阅的群列表中选择。"))
+            event.stop_event()
             return
+        if content.split(maxsplit=1)[:1] in (["bili下载"], ["下载视频"]):
+            content = "/" + content
         segments = [{"type": "text", "data": {"text": content}}]
-        raw_data = getattr(raw, "raw_data", None)
         if isinstance(raw_data, dict):
             for key in ("ark", "json", "xml"):
                 share = raw_data.get(key)

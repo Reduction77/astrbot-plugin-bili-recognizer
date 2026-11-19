@@ -1,5 +1,11 @@
 # 更新日志
 
+## AstrBot v1.0.0
+
+首次发布 AstrBot 插件，支持 QQ 链接识别、视频下载、直播通知和 WebUI 控制台。
+
+# NapCat 版本历史
+
 ## 1.6.2
 
 - **裸编号识别收紧为 BV / AV / CV**：之前 ss、ep、md、au、am、ml、rl 等两字母前缀加数字也会裸触发，
